@@ -21,5 +21,13 @@ services:
     depends_on:
       data-warehouse:
         condition: service_healthy
+  
+  warehouse-ui:
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=enaunay@gmail.com
+      - PGADMIN_DEFAULT_PASSWORD=root
+    ports:
+      - "9000:80"
 volumes:
   warehouse-volume:

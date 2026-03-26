@@ -1,6 +1,7 @@
 import pandas as pd
 import sqlalchemy
 import math
+from tqdm.auto import tqdm
 
 def main():
     
@@ -13,29 +14,52 @@ def main():
     print('Datos descargados del internet (NY TAXI GOV)')
 
     print(f'Cantidad de datos: {datos_crudos.shape[0]}')
+    print(datos_crudos.info())
     print(f'Columnas: {datos_crudos.columns}')  
     print(datos_crudos.head())
     print()
 
-    tamano = 10000
+    conexion = sqlalchemy.create_engine('postgresql://root:root@hola-mundo-datos-data-warehouse-1:5432/warehouse')
 
-    # Agregar las filas por chunks (grupos)
     # round() -> .5 -> 1
     # ceil() -> .00000000001 -> 1
     # floor() -> .9999999 -> 0
-    #for i in range(1, math.ceil(datos_crudos.shape[0]/tamano)):
     
-    conexion = sqlalchemy.create_engine('postgresql://root:root@hola-mundo-datos-data-warehouse-1:5432/warehouse')
+    # Chunking -> segmentar los datos en grupos: grupos de 10000; Agregar las filas por chunks (grupos)
 
-    print('Inicio de guaradado en el almacen de datos')
+    tamano = 100000
 
-    datos_crudos.iloc[:100, :].to_sql(
+    num_chunks = math.ceil(datos_crudos.shape[0]/tamano)
+    
+    inicio = 0
+    fin = tamano
+
+    # Idempotencia: No importa cuando yo ejecute el script, simpre da el mismo resultado
+
+    print('Creacion de la tabla')
+    datos_crudos.head(0).to_sql(
         name='viajes_taxi_amarillo',
         con=conexion,
         if_exists='replace'
     )
 
-    print('Se guardo exitosamente en el almacen de datos')
+    print('Inicio de guardado de datos en el warehouse')
+
+    for i in tqdm(range(1, num_chunks)):
+        # indexacion - slice [incluyente:excluyente]
+        # [0: 10000]
+        # [10000: 20000]
+        # [20000: 30000]
+        datos_crudos.iloc[inicio:fin].to_sql(
+            name='viajes_taxi_amarillo',
+            con=conexion,
+            if_exists='append'
+        )
+
+        inicio = fin
+        fin = tamano * i
+
+    print('Se guardaron los datos exitosamente en el warehouse')
 
 
 # Verificamos que el archivo se ejecuta como principal
