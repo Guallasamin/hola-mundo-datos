@@ -1,1 +1,0 @@
-SELECT * FROM raw.ny_taxi_data;

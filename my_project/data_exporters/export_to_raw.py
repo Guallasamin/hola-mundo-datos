@@ -27,7 +27,7 @@ def export_data_to_postgres(urls, **kwargs) -> None:
     table_name = 'ny_taxi_data'
     config_path = path.join(get_repo_path(), 'io_config.yaml')
     config_profile = 'default'
-    chunk_size = 100000
+    chunk_size = 200000
     temp_file_path = '/tmp/temp_taxi_month.parquet' 
 
     # =========================================================

@@ -27,7 +27,7 @@ def generate_urls_to_load(*args, **kwargs):
         FROM raw.ny_taxi_data
     """
     
-    start_year = 2024
+    start_year = 2023
     start_month = 1
     
     # 1. Intentamos la conexión a Postgres usando tu io_config.yaml
@@ -49,14 +49,12 @@ def generate_urls_to_load(*args, **kwargs):
             print("⚠️ La tabla existe pero está vacía. Empezando desde 2019.")
             
     except Exception as e:
-        
+        # AHORA SÍ VEREMOS EL ERROR REAL
         print("⚠️ FALLO EN LA CONEXIÓN O CONSULTA A POSTGRES ⚠️")
         print(f"🛑 DETALLE DEL ERROR: {str(e)}")
         print("👉 Si dice 'relation does not exist', es normal: la tabla aún no existe.")
         print("👉 Si dice 'authentication failed' o algo de 'NoneType', Mage no está leyendo tu archivo .env.")
-        print("Empezando la carga desde cero (2019-01).")
 
-    # 2. Calculamos límite (Fecha actual - 2 meses) por retraso en la Info
     hoy = datetime.now()
     limit_month = hoy.month - 2
     limit_year = hoy.year

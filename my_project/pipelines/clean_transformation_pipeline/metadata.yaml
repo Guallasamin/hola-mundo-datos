@@ -1,63 +1,19 @@
 blocks:
 - all_upstream_blocks_executed: true
   color: null
-  configuration:
-    data_provider: postgres
-    data_provider_profile: default
-    dbt: {}
-    disable_query_preprocessing: false
-    export_write_policy: append
-    limit: 1000
-    use_raw_sql: false
-  downstream_blocks:
-  - build_dimensional_model
-  executor_config: null
-  executor_type: local_python
-  has_callback: false
-  language: sql
-  name: extract_from_raw
-  retry_config: null
-  status: updated
-  timeout: null
-  type: data_loader
-  upstream_blocks: []
-  uuid: extract_from_raw
-- all_upstream_blocks_executed: true
-  color: null
-  configuration:
-    data_provider: postgres
-    data_provider_profile: default
-    export_write_policy: append
-  downstream_blocks:
-  - export_to_clean
-  executor_config: null
-  executor_type: local_python
-  has_callback: false
-  language: python
-  name: build_dimensional_model
-  retry_config: null
-  status: executed
-  timeout: null
-  type: transformer
-  upstream_blocks:
-  - extract_from_raw
-  uuid: build_dimensional_model
-- all_upstream_blocks_executed: true
-  color: null
   configuration: {}
   downstream_blocks: []
   executor_config: null
   executor_type: local_python
   has_callback: false
   language: python
-  name: export_to_clean
+  name: import_raw_data
   retry_config: null
   status: executed
   timeout: null
-  type: data_exporter
-  upstream_blocks:
-  - build_dimensional_model
-  uuid: export_to_clean
+  type: data_loader
+  upstream_blocks: []
+  uuid: import_raw_data
 cache_block_output_in_memory: false
 callbacks: []
 concurrency_config: {}
