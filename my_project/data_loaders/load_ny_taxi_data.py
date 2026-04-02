@@ -1,27 +1,25 @@
-import pandas as pd
-import requests
-import io
-
 if 'data_loader' not in globals():
     from mage_ai.data_preparation.decorators import data_loader
 
 @data_loader
-def load_data_from_api(*args, **kwargs):
+def generate_urls_to_load(*args, **kwargs):
     """
-    Descarga un mes de datos de NY Taxi para prueba, 
-    esquivando el bloqueo 403 del servidor.
+    Fuerza bruta: Genera todas las URLs desde 2019 hasta 2026.
+    Cero consultas a la base de datos.
     """
-    url = 'https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2024-01.parquet'
+    urls_to_load = []
     
-    # 1. Agregamos un 'User-Agent' para simular que somos un navegador web común
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+    # Rango estricto solicitado: 2019 a 2026
+    start_year = 2013
+    end_year = 2025
     
-    # 2. Descargamos el archivo usando requests
-    response = requests.get(url, headers=headers)
-    response.raise_for_status() # Lanza un error claro si la descarga falla
+    for year in range(start_year, end_year + 1):
+        for month in range(1, 13):
+            url = f'https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{year}-{month:02d}.parquet'
+            urls_to_load.append(url)
+            
+    print(f"🔥 Se generaron {len(urls_to_load)} URLs estáticas.")
+    print(f"Primera URL: {urls_to_load[0]}")
+    print(f"Última URL: {urls_to_load[-1]}")
     
-    # 3. Leemos los bytes descargados directamente en Pandas
-    df = pd.read_parquet(io.BytesIO(response.content))
-    
-    # ENVIAMOS SOLO 10 MIL REGISTROS PARA LA PRUEBA LOCAL
-    return df.head(10000)
+    return urls_to_load

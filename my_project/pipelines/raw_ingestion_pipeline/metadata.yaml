@@ -8,13 +8,13 @@ blocks:
   executor_type: local_python
   has_callback: false
   language: python
-  name: load_ny_taxi_data
+  name: load_ny_taxy_data
   retry_config: null
   status: executed
   timeout: null
   type: data_loader
   upstream_blocks: []
-  uuid: load_ny_taxi_data
+  uuid: load_ny_taxy_data
 - all_upstream_blocks_executed: true
   color: null
   configuration: {}
@@ -25,11 +25,11 @@ blocks:
   language: python
   name: export_to_raw
   retry_config: null
-  status: executed
+  status: updated
   timeout: null
   type: data_exporter
   upstream_blocks:
-  - load_ny_taxi_data
+  - load_ny_taxy_data
   uuid: export_to_raw
 cache_block_output_in_memory: false
 callbacks: []
