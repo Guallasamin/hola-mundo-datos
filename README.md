@@ -11,10 +11,11 @@ La arquitectura se diseñó bajo un enfoque **ELT (Extract, Load, Transform)** e
 * **Docker Compose:** Es la columna vertebral de la infraestructura.
   * *¿Por qué?* Garantiza la **reproducibilidad**. Permite levantar toda la red de servicios (bases de datos, orquestadores y UI) con un solo comando, asegurando que los puertos, redes internas y volúmenes de persistencia funcionen igual en cualquier máquina.
 
-![Diagrama del Modelo Estrella](Docker.png)
+![Contenedores de Docker](Evidencias/Docker.png)
 
 * **Mage AI:** El motor de orquestación.
   * *¿Por qué?* A diferencia de *scripts* sueltos, Mage permite encadenar dependencias lógicas, programar ejecuciones (triggers), y manejar particiones de código (bloques). Además, gestiona de forma nativa variables de entorno y *secrets* (vía `io_config.yaml`), cumpliendo la regla estricta de no *hardcodear* credenciales.
+
 * **PostgreSQL:** El *Data Warehouse* central.
   * *¿Por qué?* Es un motor relacional robusto capaz de almacenar millones de registros (capa `raw`) y ejecutar procesamiento analítico pesado in-database (capa `clean`) mediante consultas SQL nativas.
 * **pgAdmin:** La capa de observabilidad.
@@ -28,20 +29,50 @@ El flujo de información obedece a una estricta separación de responsabilidades
 ### Fase A: Extracción y Carga (El Pipeline Raw)
 El objetivo aquí es obtener los datos fuente y aterrizarlos en la base de datos de la forma más fiel y segura posible.
 * **Obtención Incremental:** El `Data Loader` en Python no descarga a ciegas. Primero, se conecta a PostgreSQL para buscar la fecha máxima cargada (`MAX(tpep_pickup_datetime)`). Basado en esto, genera dinámicamente las URLs solo de los meses faltantes de los archivos `.parquet` del NY TLC.
+
+![Contenedores de Docker](Evidencias/pipeline_raw1.png)
+
 * **Inyección Optimizada (Chunking):** Dado que cada archivo pesa cientos de megabytes y contiene millones de filas, los datos se descargan mediante *streaming* (`requests.get(stream=True)`) y se insertan a PostgreSQL en lotes de 200,000 registros. Esto previene que la memoria RAM del contenedor Docker colapse.
 * **Manejo de Schema Drift:** Si el archivo Parquet trae una columna que no existía en meses anteriores, el código lo detecta e inyecta dinámicamente un `ALTER TABLE` en PostgreSQL para agregar la nueva columna de tipo `TEXT`, evitando que el pipeline se rompa.
+
+![Contenedores de Docker](Evidencias/pipeline_raw2.png)
 
 ### Fase B: Tratamiento y Modelado (El Pipeline Clean)
 Aquí aplicamos la "T" del ELT directamente dentro de PostgreSQL para estandarizar los datos y prepararlos para el consumo analítico.
 * **Transformación *In-Database*:** Mage actúa únicamente como un "gatillo". El `Data Exporter` envía un macro-script SQL que PostgreSQL procesa utilizando su propio motor de cómputo.
+
+![Contenedores de Docker](Evidencias/pipeline_clean1.png)
+
 * **Limpieza (Data Quality):** Se aplican filtros duros (`WHERE trip_distance > 0 AND passenger_count > 0`) para eliminar registros imposibles o ruidosos.
 * **Tipado Riguroso:** Se aplica un doble *casting* (`::numeric::int` y `::timestamp`) para asegurar que IDs categóricos sean enteros puros y las fechas sean marcas de tiempo válidas.
 
----
+![Configuración de Trigger](Evidencias/triguer1.png)
+![Configuración de Trigger](Evidencias/triguer2.png)
+![Configuración de Trigger](Evidencias/trigersall.png)
 
-### 🗄️ 3. Anatomía de las Tablas (El Modelo Dimensional)
+### 3. Estructura de la Base de Datos: Esquemas y Tablas
+
+Para garantizar la separación obligatoria entre datos crudos y transformados exigida por el diseño ELT, la base de datos PostgreSQL se organizó lógicamente en **dos esquemas distintos**:
+
+![Configuración de Trigger](Evidencias/pgadmin_schemas.png)
+
+### 📦 Esquema `raw` (Capa de Ingesta)
+Este esquema funciona como la zona de aterrizaje de los datos. Almacena la información exactamente como viene de la fuente, actuando como un respaldo histórico inmutable.
+
+* **Tabla `raw.ny_taxi_data`:** Es una tabla plana consolidada que contiene decenas de millones de registros provenientes de los archivos Parquet. Si el NYC TLC añade nuevas columnas en meses futuros, esta tabla evoluciona dinámicamente agregándolas en formato de texto gracias a la validación de *Schema Drift* de nuestro pipeline.
+
+![Configuración de Trigger](Evidencias/counraw.png)
+
+### Esquema `clean` (Capa Analítica y Modelo Dimensional)
+Este esquema contiene los datos limpios, validados y estandarizados. Está estructurado bajo un **Modelo de Estrella (Star Schema)**, optimizado para consultas analíticas y herramientas de Business Intelligence. Se compone de las siguientes tablas:
+
+![Configuración de Trigger](Evidencias/cleanfact.png)
 
 La capa analítica (`clean`) está estructurada bajo un **Modelo de Estrella (Star Schema)**, compuesto por una tabla central de hechos rodeada de dimensiones descriptivas.
+
+![Configuración de Trigger](Evidencias/cleanresume.png)
+![Configuración de Trigger](Evidencias/cleanresume2.png)
+![Configuración de Trigger](Evidencias/cleanresume3.png)
 
 ### 🔹 Tabla de Hechos (Fact Table)
 **`clean.fact_trips`**: Es el corazón del modelo. Su granularidad es exacta: **1 fila = 1 viaje de taxi**.
