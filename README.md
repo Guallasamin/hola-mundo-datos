@@ -68,9 +68,66 @@ Este esquema contiene los datos limpios, validados y estandarizados. Está estru
 
 ![Configuración de Trigger](Evidencias/cleanfact.png)
 
+### Validaciones de Calidad de Datos (Capa Clean)
+
+La construcción de la capa `clean` no consiste en una simple copia de los datos crudos. Para garantizar que la información sea verdaderamente útil para el análisis y el Business Intelligence, se implementó un pipeline de transformación ELT con estrictos criterios de *Data Quality* ejecutados directamente en PostgreSQL.
+
+Al poblar nuestra tabla de hechos (`fact_trips`) y nuestras dimensiones espaciales, se aplicaron las siguientes validaciones técnicas y reglas de negocio:
+
+* **Normalización de tipos de datos y estandarización de columnas:** Los datos de la capa `raw` (que entraron como texto por seguridad) fueron casteados rigurosamente. Se aplicó un doble *casting* (`::numeric::int`) para asegurar que las llaves foráneas sean enteros puros, y `::timestamp` para las variables de tiempo. Además, se renombraron las columnas al estándar *snake_case* (ej. de `pulocationid` a `pu_location_id`).
+
+**Normalización de tipos de datos y estandarización de columnas**[cite: 213, 214]: Los datos de la capa `raw` (que entraron como texto por seguridad) fueron casteados rigurosamente. Se aplicó un doble *casting* (`::numeric::int`) para asegurar que las llaves foráneas sean enteros puros, y `::timestamp` para las variables de tiempo. Además, se renombraron las columnas al estándar *snake_case* para facilitar su lectura.
+
+```sql
+  SELECT 
+      vendorid::numeric::int AS vendor_id,
+      pulocationid::numeric::int AS pu_location_id,
+      tpep_pickup_datetime::timestamp,
+      -- ...
+ ```
+
+* **Manejo estricto de valores nulos:** Para proteger la integridad del modelo, se implementaron filtros `IS NOT NULL AND != 'None'` en los campos temporales y en las llaves de las dimensiones espaciales. Esto evita que los valores `NULL` exportados como texto desde Pandas rompan los cálculos analíticos.
+
+```sql
+-- Aplicado en la tabla de hechos:
+AND tpep_pickup_datetime IS NOT NULL AND tpep_pickup_datetime != 'None'
+
+-- Aplicado en las dimensiones espaciales:
+WHERE pulocationid IS NOT NULL AND pulocationid != 'None';
+      -- ...
+ ```
+
+* **Filtrado de registros imposibles o erróneos:** Se eliminaron las anomalías lógicas del negocio exigiendo que todo viaje válido tenga una distancia mayor a cero (`trip_distance > 0`) y al menos un pasajero (`passenger_count > 0`). Los registros que no cumplen esto se consideran errores de hardware del taxímetro o viajes cancelados.
+
+```sql
+WHERE trip_distance::numeric > 0 
+  AND passenger_count::numeric > 0
+ ```
+
+* **Validación de fechas y timestamps (Filtro de Anomalías):** Es común que los relojes de los taxímetros se desconfiguren tras quedarse sin batería, reportando viajes en los años 1970, 2000, o fechas en el futuro. Para aislar los datos útiles, se limitó la ingesta a una ventana de tiempo lógica: posterior al 1 de enero de 2023 (`>= '2023-01-01 00:00:00'`) y estrictamente anterior a la fecha actual del sistema (`<= CURRENT_TIMESTAMP`).
+
+```sql
+AND tpep_pickup_datetime::timestamp >= '2023-01-01 00:00:00'
+AND tpep_pickup_datetime::timestamp <= CURRENT_TIMESTAMP
+ ```
+
+* **Consistencia temporal (Pickup vs. Dropoff):** Se garantizó la coherencia cronológica de los eventos mediante la regla `tpep_dropoff_datetime > tpep_pickup_datetime`, asegurando que ningún viaje termine antes de haber comenzado.
+
+```sql
+AND tpep_dropoff_datetime::timestamp > tpep_pickup_datetime::timestamp;
+ ```
+
+* **Validación y generación de nuevas métricas:** Basado en la consistencia de los timestamps validados, se calculó nativamente en SQL la duración real de cada viaje (`trip_duration_seconds`) utilizando la función `EXTRACT(EPOCH FROM ...)`.
+
+```sql
+-- Calculamos la duración directamente en SQL
+EXTRACT(EPOCH FROM (tpep_dropoff_datetime::timestamp - tpep_pickup_datetime::timestamp)) AS trip_duration_seconds 
+```
+
+![Configuración de Trigger](Evidencias/cleanresum.png)
+
 La capa analítica (`clean`) está estructurada bajo un **Modelo de Estrella (Star Schema)**, compuesto por una tabla central de hechos rodeada de dimensiones descriptivas.
 
-![Configuración de Trigger](Evidencias/cleanresume.png)
 ![Configuración de Trigger](Evidencias/cleanresume2.png)
 ![Configuración de Trigger](Evidencias/cleanresume3.png)
 
